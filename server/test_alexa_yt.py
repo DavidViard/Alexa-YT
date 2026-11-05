@@ -87,6 +87,27 @@ class PlaylistItemsTest(unittest.TestCase):
         self.assertEqual(g.playlist_items("PL"), ["ok1", "ok2"])
 
 
+class GateTest(unittest.TestCase):
+    def test_urgent_request_preempts_background(self):
+        tmp = tempfile.mkdtemp()
+        fake = os.path.join(tmp, "yt-dlp")
+        with open(fake, "w") as f:
+            f.write("#!%s\nimport json,sys,time\n"
+                    "vid=sys.argv[-1][-11:]\n"
+                    "time.sleep(30 if vid.startswith('slow') else 0)\n"
+                    "print(json.dumps({'url':'http://x/?expire=9999999999','ext':'m4a',"
+                    "'title':vid}))\n" % sys.executable)
+        os.chmod(fake, 0o755)
+        yt = alexa_yt.YouTube(dict(alexa_yt.DEFAULTS, ytdlp_path=fake))
+        yt.prefetch("slowBBBBBBB", urgent=False)
+        import time
+        time.sleep(0.5)
+        start = time.time()
+        info = yt.stream_info("fastAAAAAAA")
+        self.assertEqual(info["title"], "fastAAAAAAA")
+        self.assertLess(time.time() - start, 10)
+
+
 class AlexaYTTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
