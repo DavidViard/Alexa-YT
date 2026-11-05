@@ -113,10 +113,7 @@ playlists. C'est à faire une seule fois.
 | | Protocole | Nom d'hôte | Port |
 | --- | --- | --- | --- |
 | Source | HTTPS | `chockr.synology.me` | 443 |
-| Destination | HTTP | `127.0.0.1` | 8765 |
-
-Mets bien `127.0.0.1` et non `localhost` : nginx peut traduire `localhost` en adresse IPv6
-(`::1`), sur laquelle le serveur n'écoute pas, et renvoyer alors une erreur 502 à Alexa.
+| Destination | HTTP | `localhost` | 8765 |
 
 DSM reste accessible comme avant sur le port 5001.
 
