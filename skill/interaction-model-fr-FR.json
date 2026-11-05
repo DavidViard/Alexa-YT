@@ -6,15 +6,36 @@
         {
           "name": "PlayPlaylistIntent",
           "slots": [
-            { "name": "playlist", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "playlist",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "joue {playlist}",
-            "lance {playlist}",
-            "mets {playlist}",
             "joue la playlist {playlist}",
+            "joue ma playlist {playlist}",
+            "jouer {playlist}",
+            "jouer la playlist {playlist}",
+            "jouer ma playlist {playlist}",
+            "lance {playlist}",
             "lance la playlist {playlist}",
-            "mets la playlist {playlist}"
+            "lance ma playlist {playlist}",
+            "lancer {playlist}",
+            "lancer la playlist {playlist}",
+            "lancer ma playlist {playlist}",
+            "mets {playlist}",
+            "mets la playlist {playlist}",
+            "mets ma playlist {playlist}",
+            "mettre {playlist}",
+            "mettre la playlist {playlist}",
+            "mettre ma playlist {playlist}",
+            "écoute {playlist}",
+            "écoute la playlist {playlist}",
+            "écoute ma playlist {playlist}",
+            "écouter {playlist}",
+            "écouter la playlist {playlist}",
+            "écouter ma playlist {playlist}"
           ]
         },
         {
@@ -23,24 +44,72 @@
           "samples": [
             "quelles sont mes playlists",
             "liste mes playlists",
-            "quelles playlists as tu"
+            "lister mes playlists",
+            "quelles playlists as tu",
+            "quelles playlists j'ai",
+            "me lister mes playlists"
           ]
         },
-        { "name": "AMAZON.PauseIntent", "samples": [] },
-        { "name": "AMAZON.ResumeIntent", "samples": [] },
-        { "name": "AMAZON.NextIntent", "samples": [] },
-        { "name": "AMAZON.PreviousIntent", "samples": [] },
-        { "name": "AMAZON.ShuffleOnIntent", "samples": [] },
-        { "name": "AMAZON.ShuffleOffIntent", "samples": [] },
-        { "name": "AMAZON.LoopOnIntent", "samples": [] },
-        { "name": "AMAZON.LoopOffIntent", "samples": [] },
-        { "name": "AMAZON.StartOverIntent", "samples": [] },
-        { "name": "AMAZON.RepeatIntent", "samples": [] },
-        { "name": "AMAZON.StopIntent", "samples": [] },
-        { "name": "AMAZON.CancelIntent", "samples": [] },
-        { "name": "AMAZON.HelpIntent", "samples": [] },
-        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
-        { "name": "AMAZON.FallbackIntent", "samples": [] }
+        {
+          "name": "AMAZON.PauseIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ResumeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NextIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.PreviousIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ShuffleOnIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ShuffleOffIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.LoopOnIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.LoopOffIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StartOverIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.RepeatIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
       ],
       "types": []
     }
