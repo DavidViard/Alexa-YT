@@ -138,6 +138,16 @@ class AlexaYTTest(unittest.TestCase):
         r = self.post(alexa("IntentRequest", "AMAZON.PauseIntent"))["response"]
         self.assertEqual(r["directives"][0]["type"], "AudioPlayer.Stop")
 
+    def test_chunked_body(self):
+        import http.client
+        body = json.dumps(alexa("LaunchRequest")).encode()
+        conn = http.client.HTTPConnection("127.0.0.1", self.httpd.server_port)
+        conn.request("POST", "/alexa", body=iter([body[:50], body[50:]]),
+                     headers={"Content-Type": "application/json"}, encode_chunked=True)
+        r = conn.getresponse()
+        self.assertEqual(r.status, 200)
+        self.assertIn("Quelle playlist", json.loads(r.read())["response"]["outputSpeech"]["text"])
+
     def test_unknown_playlist_reprompts(self):
         r = self.play("jazz manouche")["response"]
         self.assertFalse(r["shouldEndSession"])

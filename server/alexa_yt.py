@@ -716,10 +716,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if urlparse(self.path).path.rstrip("/") != "/alexa":
             return self.send_empty(404)
-        length = int(self.headers.get("Content-Length") or 0)
         try:
-            body = json.loads(self.rfile.read(length) or b"{}")
+            body = json.loads(self.read_body() or b"{}")
         except ValueError:
+            LOG.warning("corps de requête illisible")
             return self.send_empty(400)
         err = self.app.check_request(body)
         if err:
@@ -731,6 +731,20 @@ class Handler(BaseHTTPRequestHandler):
             LOG.exception("erreur dans la skill")
             resp = Skill.response("Désolé, une erreur est survenue sur le serveur.")
         return self.send_json(200, resp)
+
+    def read_body(self) -> bytes:
+        """Lit le corps, avec Content-Length ou en « Transfer-Encoding: chunked »."""
+        if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
+            data = b""
+            while True:
+                size = int(self.rfile.readline().split(b";")[0].strip() or b"0", 16)
+                if size == 0:
+                    while self.rfile.readline() not in (b"\r\n", b"\n", b""):
+                        pass
+                    return data
+                data += self.rfile.read(size)
+                self.rfile.readline()
+        return self.rfile.read(int(self.headers.get("Content-Length") or 0))
 
     # -- proxy audio -------------------------------------------------------
 
