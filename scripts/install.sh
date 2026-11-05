@@ -14,7 +14,8 @@ esac
 command -v python3 >/dev/null || { echo "python3 introuvable : installe Python 3 depuis le Centre de paquets"; exit 1; }
 python3 -c 'import sys; assert sys.version_info >= (3, 8)' || { echo "Python 3.8 minimum requis"; exit 1; }
 
-mkdir -p bin
+mkdir -p bin tmp
+export TMPDIR="$ROOT/tmp"  # /tmp est en « noexec » sur DSM
 echo "Téléchargement de yt-dlp ($YTDLP)..."
 curl -fL --retry 3 -o bin/yt-dlp "https://github.com/yt-dlp/yt-dlp/releases/latest/download/$YTDLP"
 chmod +x bin/yt-dlp

@@ -148,6 +148,15 @@ class AlexaYTTest(unittest.TestCase):
         self.assertEqual(r.status, 200)
         self.assertIn("Quelle playlist", json.loads(r.read())["response"]["outputSpeech"]["text"])
 
+    def test_stops_after_repeated_failures(self):
+        tok = self.play("musique du matin")["response"]["directives"][0]["audioItem"]["stream"]["token"]
+        r = self.post(alexa("AudioPlayer.PlaybackFailed", token=tok))["response"]
+        tok = r["directives"][0]["audioItem"]["stream"]["token"]
+        r = self.post(alexa("AudioPlayer.PlaybackFailed", token=tok))["response"]
+        tok = r["directives"][0]["audioItem"]["stream"]["token"]
+        r = self.post(alexa("AudioPlayer.PlaybackFailed", token=tok))["response"]
+        self.assertNotIn("directives", r)
+
     def test_unknown_playlist_reprompts(self):
         r = self.play("jazz manouche")["response"]
         self.assertFalse(r["shouldEndSession"])
