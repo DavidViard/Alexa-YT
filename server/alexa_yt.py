@@ -46,6 +46,7 @@ DEFAULTS = {
     "audio_format": "140/bestaudio[ext=m4a]/bestaudio",
     "shuffle_by_default": False,
     "playlist_refresh_minutes": 60,
+    "warm_first_tracks": True,
     "state_file": "state.json",
     "token_file": "google_token.json",
     "google_client_id": "",
@@ -270,15 +271,45 @@ class YouTube:
         self._streams: dict = {}  # video_id -> (expires_at, info)
         self._lock = threading.Lock()
         self._resolving: dict = {}  # video_id -> threading.Event
+        # Un seul yt-dlp à la fois : le processeur du NAS est trop faible pour
+        # en faire tourner plusieurs. Une demande urgente (l'Echo attend le son)
+        # passe devant et interrompt un préchargement en cours.
+        self._gate = threading.Condition()
+        self._running = None  # (Popen, urgent)
+        self._urgent_waiting = 0
 
-    def _run(self, args: list, timeout: int = 120) -> str:
+    def _run(self, args: list, timeout: int = 180, urgent: bool = True) -> str:
         cmd = [self.cfg["ytdlp_path"], "--no-warnings", "--ignore-config"]
         cmd += list(self.cfg["ytdlp_extra_args"]) + args
-        LOG.debug("yt-dlp %s", " ".join(args))
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        if out.returncode != 0:
-            raise RuntimeError("yt-dlp a échoué : " + out.stderr.strip()[-500:])
-        return out.stdout
+        with self._gate:
+            if urgent:
+                self._urgent_waiting += 1
+            try:
+                while self._running is not None or (not urgent and self._urgent_waiting):
+                    if urgent and self._running is not None and not self._running[1]:
+                        LOG.info("préchargement interrompu au profit d'une lecture")
+                        self._running[0].kill()
+                    self._gate.wait(1)
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                        text=True)
+                self._running = (proc, urgent)
+            finally:
+                if urgent:
+                    self._urgent_waiting -= 1
+        started = time.time()
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, err = proc.communicate()
+        finally:
+            with self._gate:
+                self._running = None
+                self._gate.notify_all()
+        LOG.debug("yt-dlp %s : %.1f s", " ".join(args), time.time() - started)
+        if proc.returncode != 0:
+            raise RuntimeError("yt-dlp a échoué : " + (err or "").strip()[-500:])
+        return out
 
     # -- playlists ---------------------------------------------------------
 
@@ -305,7 +336,7 @@ class YouTube:
             ids = self.google.playlist_items(playlist_id)
         else:
             url = "https://www.youtube.com/playlist?list=" + playlist_id
-            data = json.loads(self._run(["--flat-playlist", "-J", url]))
+            data = json.loads(self._run(["--flat-playlist", "-J", url], urgent=False))
             ids = []
             for e in data.get("entries") or []:
                 vid = (e or {}).get("id")
@@ -337,7 +368,7 @@ class YouTube:
 
     # -- flux audio --------------------------------------------------------
 
-    def stream_info(self, video_id: str, force: bool = False) -> dict:
+    def stream_info(self, video_id: str, force: bool = False, urgent: bool = True) -> dict:
         """URL googlevideo + en-têtes + taille, en cache jusqu'à expiration."""
         while True:
             with self._lock:
@@ -352,11 +383,11 @@ class YouTube:
                 else:
                     owner = False
             if not owner:
-                event.wait(150)
+                event.wait(200)
                 force = False
                 continue
             try:
-                info = self._resolve(video_id)
+                info = self._resolve(video_id, urgent)
                 with self._lock:
                     self._streams[video_id] = (info["expires"], info)
                 return info
@@ -365,9 +396,11 @@ class YouTube:
                     self._resolving.pop(video_id, None)
                 event.set()
 
-    def _resolve(self, video_id: str) -> dict:
+    def _resolve(self, video_id: str, urgent: bool = True) -> dict:
         url = "https://www.youtube.com/watch?v=" + video_id
-        data = json.loads(self._run(["-f", self.cfg["audio_format"], "-j", url]))
+        started = time.time()
+        data = json.loads(self._run(["-f", self.cfg["audio_format"], "-j", url],
+                                    urgent=urgent))
         stream_url = data.get("url")
         if not stream_url:
             raise RuntimeError("aucun flux audio pour " + video_id)
@@ -376,7 +409,7 @@ class YouTube:
         ext = data.get("ext") or "m4a"
         ctype = {"m4a": "audio/mp4", "mp4": "audio/mp4", "webm": "audio/webm",
                  "mp3": "audio/mpeg"}.get(ext, "application/octet-stream")
-        LOG.info("flux prêt : %s (%s)", data.get("title"), ext)
+        LOG.info("flux prêt en %.0f s : %s (%s)", time.time() - started, data.get("title"), ext)
         return {
             "url": stream_url,
             "headers": data.get("http_headers") or {},
@@ -386,10 +419,28 @@ class YouTube:
             "expires": expires,
         }
 
-    def prefetch(self, video_id: str) -> None:
+    def is_ready(self, video_id: str) -> bool:
+        with self._lock:
+            cached = self._streams.get(video_id)
+        return bool(cached and cached[0] > time.time())
+
+    def warm_first_tracks(self) -> None:
+        """Prépare à l'avance le 1er titre de chaque playlist (lancement immédiat)."""
+        for p in self.playlists():
+            shuffle = self.cfg["shuffle_by_default"] if p.get("shuffle") is None else p["shuffle"]
+            if shuffle:
+                continue
+            try:
+                ids = self.tracks(p["id"])
+                if ids and not self.is_ready(ids[0]):
+                    self.stream_info(ids[0], urgent=False)
+            except Exception as exc:  # noqa: BLE001
+                LOG.info("préparation de %s reportée : %s", p.get("name"), exc)
+
+    def prefetch(self, video_id: str, urgent: bool = False) -> None:
         def work():
             try:
-                self.stream_info(video_id)
+                self.stream_info(video_id, urgent=urgent)
             except Exception as exc:  # noqa: BLE001
                 LOG.warning("préchargement %s impossible : %s", video_id, exc)
         threading.Thread(target=work, daemon=True).start()
@@ -473,7 +524,7 @@ class Skill:
                   "offsetInMilliseconds": int(offset)}
         if previous:
             stream["expectedPreviousToken"] = previous
-        self.yt.prefetch(vid)
+        self.yt.prefetch(vid, urgent=True)  # l'Echo va demander ce titre tout de suite
         return {"type": "AudioPlayer.Play", "playBehavior": behavior,
                 "audioItem": {"stream": stream}}
 
@@ -617,8 +668,6 @@ class Skill:
         st = {"playlist": pl_id, "name": p["name"], "order": order, "pos": 0, "failures": 0,
               "offset": 0, "shuffle": shuffle, "loop": bool(p.get("loop"))}
         self.state.put(device, st)
-        if len(order) > 1:
-            self.yt.prefetch(order[1])
         return self.response("Je lance " + p["name"] + ".",
                              directives=[self.play_directive(st, 0)])
 
@@ -885,6 +934,8 @@ class App:
         def loop():
             while True:
                 self.yt.refresh_all()
+                if self.cfg["warm_first_tracks"]:
+                    self.yt.warm_first_tracks()
                 time.sleep(max(5, self.cfg["playlist_refresh_minutes"]) * 60)
         threading.Thread(target=loop, daemon=True).start()
 
