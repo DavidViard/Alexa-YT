@@ -130,6 +130,8 @@ Remplace `utilisateur` par ton identifiant DSM dans les chemins ci-dessous.
   tous les jours à 5 h, script :
   `sh /var/services/homes/utilisateur/alexa-yt/scripts/update.sh` (met à jour yt-dlp et redémarre)
 
+Pour arrêter le serveur : `sh ~/alexa-yt/scripts/stop.sh` (et `start.sh` pour le relancer).
+
 Lance la première tâche une fois à la main (clic droit › Exécuter), puis vérifie :
 
 ```sh
