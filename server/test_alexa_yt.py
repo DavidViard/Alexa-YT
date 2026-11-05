@@ -128,6 +128,16 @@ class AlexaYTTest(unittest.TestCase):
                        "playlists": [{"name": "Chill", "id":
                                       "https://www.youtube.com/playlist?list=PLchill"}]}, f)
         cls.cfg = alexa_yt.load_config(cfgfile)
+        cls.www = os.path.join(cls.tmp, "site")
+        os.mkdir(cls.www)
+        os.mkdir(os.path.join(cls.www, "sous"))
+        with open(os.path.join(cls.www, "index.html"), "w") as f:
+            f.write("<h1>Accueil</h1>")
+        with open(os.path.join(cls.www, "sous", "index.html"), "w") as f:
+            f.write("sous")
+        with open(os.path.join(cls.tmp, "secret.txt"), "w") as f:
+            f.write("ne pas servir")
+        cls.cfg["www_dir"] = cls.www
         yt = alexa_yt.YouTube(cls.cfg, FakeGoogle())
         yt.refresh_account_playlists()
         cls.app = alexa_yt.App(cls.cfg, yt)
@@ -221,6 +231,27 @@ class AlexaYTTest(unittest.TestCase):
             self.assertEqual(r.status, 206)
             self.assertEqual(r.headers["Content-Range"], "bytes 1000-1999/%d" % len(AUDIO))
             self.assertEqual(r.read(), AUDIO[1000:2000])
+
+    def test_static_site(self):
+        with urllib.request.urlopen(self.base + "/") as r:
+            self.assertEqual(r.read(), b"<h1>Accueil</h1>")
+            self.assertTrue(r.headers["Content-Type"].startswith("text/html"))
+        with urllib.request.urlopen(self.base + "/sous") as r:  # suit la redirection 301
+            self.assertEqual(r.read(), b"sous")
+        import http.client
+        for path in ("/../secret.txt", "/%2e%2e/secret.txt", "/absent.html"):
+            conn = http.client.HTTPConnection("127.0.0.1", self.httpd.server_port)
+            conn.request("GET", path)
+            r = conn.getresponse()
+            self.assertEqual(r.status, 404, path)
+            r.read()
+        self.cfg["www_dir"] = ""
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(self.base + "/")
+            self.assertEqual(cm.exception.code, 404)
+        finally:
+            self.cfg["www_dir"] = self.www
 
     def test_stream_requires_signature(self):
         with self.assertRaises(urllib.error.HTTPError) as cm:
