@@ -237,6 +237,7 @@ envoie-le au même endroit dans File Station (en remplaçant l'ancien), puis
 | `playlists` | Playlists en plus de celles de ton compte, par ex. celles d'autres chaînes : `[{"name": "Jazz", "id": "PL…", "shuffle": true}]` (`id` accepte aussi l'URL complète) |
 | `audio_format` | Format yt-dlp ; par défaut AAC/M4A, lu nativement par l'Echo |
 | `warm_first_tracks` | `true` (par défaut) : prépare à l'avance le 1er titre de chaque playlist non aléatoire, pour un lancement immédiat |
+| `www_dir` | Facultatif : dossier de pages statiques servies sur `https://ton-nas/` (par ex. `"/volume1/homes/utilisateur/site"`). Vide par défaut : seule la skill répond |
 
 ## Limites connues
 

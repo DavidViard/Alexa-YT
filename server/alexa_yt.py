@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os
 import random
 import re
@@ -27,7 +28,7 @@ import urllib.request
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 LOG = logging.getLogger("alexa-yt")
 
@@ -52,6 +53,7 @@ DEFAULTS = {
     "google_client_id": "",
     "google_client_secret": "",
     "playlists": [],
+    "www_dir": "",
 }
 
 
@@ -67,8 +69,8 @@ def load_config(path: str) -> dict:
     base = os.path.dirname(os.path.abspath(path))
     if "/" in cfg["ytdlp_path"] and not os.path.isabs(cfg["ytdlp_path"]):
         cfg["ytdlp_path"] = os.path.normpath(os.path.join(base, cfg["ytdlp_path"]))
-    for key in ("state_file", "token_file"):
-        if not os.path.isabs(cfg[key]):
+    for key in ("state_file", "token_file", "www_dir"):
+        if cfg[key] and not os.path.isabs(cfg[key]):
             cfg[key] = os.path.join(base, cfg[key])
     return cfg
 
@@ -772,12 +774,44 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"ok": True})
         if path.startswith("/stream/"):
             return self.stream(head=False)
-        return self.send_empty(404)
+        return self.static(path, head=False)
 
     def do_HEAD(self):
-        if urlparse(self.path).path.startswith("/stream/"):
+        path = urlparse(self.path).path
+        if path.startswith("/stream/"):
             return self.stream(head=True)
-        return self.send_empty(404)
+        return self.static(path, head=True)
+
+    def static(self, path: str, head: bool) -> None:
+        """Sert les fichiers du dossier www_dir (site perso facultatif), sans en sortir."""
+        if not self.app.cfg["www_dir"]:
+            return self.send_empty(404)
+        root = os.path.realpath(self.app.cfg["www_dir"])
+        target = os.path.realpath(os.path.join(root, unquote(path).lstrip("/")))
+        if target != root and not target.startswith(root + os.sep):
+            return self.send_empty(404)
+        if os.path.isdir(target):
+            if not path.endswith("/"):
+                self.send_response(301)
+                self.send_header("Location", path + "/")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            target = os.path.join(target, "index.html")
+        if not os.path.isfile(target) or os.path.basename(target).startswith("."):
+            return self.send_empty(404)
+        ctype = mimetypes.guess_type(target)[0] or "application/octet-stream"
+        if ctype.startswith("text/") or ctype in ("application/json", "application/javascript"):
+            ctype += ";charset=UTF-8"
+        with open(target, "rb") as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        if not head:
+            self.wfile.write(data)
 
     def do_POST(self):
         if urlparse(self.path).path.rstrip("/") != "/alexa":
