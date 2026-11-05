@@ -5,6 +5,9 @@ ROOT="$(pwd)"
 PIDFILE="$ROOT/alexa-yt.pid"
 LOG="$ROOT/alexa-yt.log"
 export PATH="$ROOT/bin:$PATH"   # yt-dlp trouve ainsi Deno
+# yt-dlp (binaire autonome) se décompresse dans TMPDIR ; /tmp est en « noexec » sur DSM
+export TMPDIR="$ROOT/tmp"
+mkdir -p "$TMPDIR"
 
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
   kill "$(cat "$PIDFILE")"; sleep 1

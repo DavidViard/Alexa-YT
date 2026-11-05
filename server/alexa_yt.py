@@ -420,6 +420,9 @@ class State:
 # Logique de la skill
 # ---------------------------------------------------------------------------
 
+MAX_CONSECUTIVE_FAILURES = 3  # évite de parcourir toute la playlist si rien ne se lit
+
+
 def make_token(st: dict, pos: int) -> str:
     return "%s|%d|%s" % (st["playlist"], pos, st["order"][pos])
 
@@ -605,7 +608,7 @@ class Skill:
         shuffle = bool(shuffle)
         if shuffle:
             random.shuffle(order)
-        st = {"playlist": pl_id, "name": p["name"], "order": order, "pos": 0,
+        st = {"playlist": pl_id, "name": p["name"], "order": order, "pos": 0, "failures": 0,
               "offset": 0, "shuffle": shuffle, "loop": bool(p.get("loop"))}
         self.state.put(device, st)
         if len(order) > 1:
@@ -647,6 +650,7 @@ class Skill:
             return self.response()
         if rtype == "AudioPlayer.PlaybackStarted":
             st["pos"], st["offset"] = pos, req.get("offsetInMilliseconds", 0)
+            st["failures"] = 0
             self.state.put(device, st)
             nxt = self.next_pos(st, pos)
             if nxt >= 0:
@@ -661,6 +665,11 @@ class Skill:
                     st, nxt, behavior="ENQUEUE", previous=token)])
         elif rtype == "AudioPlayer.PlaybackFailed":
             LOG.warning("échec de lecture %s : %s", token, json.dumps(req.get("error")))
+            st["failures"] = st.get("failures", 0) + 1
+            self.state.put(device, st)
+            if st["failures"] >= MAX_CONSECUTIVE_FAILURES:
+                LOG.error("%d échecs de suite, lecture arrêtée", st["failures"])
+                return self.response()
             nxt = self.next_pos(st, pos)
             if nxt >= 0 and nxt != pos:
                 st["pos"], st["offset"] = nxt, 0
@@ -716,10 +725,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if urlparse(self.path).path.rstrip("/") != "/alexa":
             return self.send_empty(404)
-        length = int(self.headers.get("Content-Length") or 0)
         try:
-            body = json.loads(self.rfile.read(length) or b"{}")
+            body = json.loads(self.read_body() or b"{}")
         except ValueError:
+            LOG.warning("corps de requête illisible")
             return self.send_empty(400)
         err = self.app.check_request(body)
         if err:
@@ -731,6 +740,20 @@ class Handler(BaseHTTPRequestHandler):
             LOG.exception("erreur dans la skill")
             resp = Skill.response("Désolé, une erreur est survenue sur le serveur.")
         return self.send_json(200, resp)
+
+    def read_body(self) -> bytes:
+        """Lit le corps, avec Content-Length ou en « Transfer-Encoding: chunked »."""
+        if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
+            data = b""
+            while True:
+                size = int(self.rfile.readline().split(b";")[0].strip() or b"0", 16)
+                if size == 0:
+                    while self.rfile.readline() not in (b"\r\n", b"\n", b""):
+                        pass
+                    return data
+                data += self.rfile.read(size)
+                self.rfile.readline()
+        return self.rfile.read(int(self.headers.get("Content-Length") or 0))
 
     # -- proxy audio -------------------------------------------------------
 

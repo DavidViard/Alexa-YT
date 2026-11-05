@@ -5,3 +5,4 @@ server/state.json
 *.log
 *.pid
 __pycache__/
+tmp/
