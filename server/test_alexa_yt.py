@@ -70,6 +70,23 @@ def alexa(rtype, intent=None, slots=None, token=None, extra=None):
             "request": req}
 
 
+class PlaylistItemsTest(unittest.TestCase):
+    def test_private_and_deleted_videos_are_skipped(self):
+        g = alexa_yt.Google({"google_client_id": "", "google_client_secret": "",
+                             "token_file": "/nonexistent"})
+        g._paged = lambda endpoint, params: [
+            {"contentDetails": {"videoId": "ok1"}, "status": {"privacyStatus": "public"},
+             "snippet": {"title": "Titre"}},
+            {"contentDetails": {"videoId": "priv"}, "status": {"privacyStatus": "private"},
+             "snippet": {"title": "Private video"}},
+            {"contentDetails": {"videoId": "del"}, "status": {"privacyStatus": "public"},
+             "snippet": {"title": "Deleted video"}},
+            {"contentDetails": {"videoId": "ok2"}, "status": {"privacyStatus": "unlisted"},
+             "snippet": {"title": "Autre"}},
+        ]
+        self.assertEqual(g.playlist_items("PL"), ["ok1", "ok2"])
+
+
 class AlexaYTTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

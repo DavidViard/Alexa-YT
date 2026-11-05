@@ -240,14 +240,20 @@ class Google:
         return [{"name": i["snippet"]["title"], "id": i["id"]} for i in items]
 
     def playlist_items(self, playlist_id: str) -> list:
-        items = self._paged("playlistItems", {"part": "contentDetails,status",
+        items = self._paged("playlistItems", {"part": "snippet,contentDetails,status",
                                               "playlistId": playlist_id})
         out = []
         for i in items:
             vid = (i.get("contentDetails") or {}).get("videoId")
             privacy = (i.get("status") or {}).get("privacyStatus")
-            if vid and privacy != "privacyStatusUnspecified":
-                out.append(vid)
+            title = (i.get("snippet") or {}).get("title") or ""
+            # Les vidéos privées ou supprimées ne sont pas lisibles par yt-dlp sans
+            # cookies de connexion : on les ignore au lieu d'échouer en lecture.
+            if not vid or privacy in ("private", "privacyStatusUnspecified") or \
+                    title in ("Private video", "Deleted video"):
+                LOG.debug("vidéo ignorée (%s) : %s", privacy, vid)
+                continue
+            out.append(vid)
         return out
 
 
