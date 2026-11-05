@@ -288,7 +288,9 @@ class YouTube:
                 while self._running is not None or (not urgent and self._urgent_waiting):
                     if urgent and self._running is not None and not self._running[1]:
                         LOG.info("préchargement interrompu au profit d'une lecture")
-                        self._running[0].kill()
+                        # SIGTERM (et non SIGKILL) : yt-dlp peut ainsi effacer ses
+                        # fichiers temporaires avant de quitter
+                        self._running[0].terminate()
                     self._gate.wait(1)
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                         text=True)
