@@ -6,3 +6,4 @@ server/state.json
 *.pid
 __pycache__/
 tmp/
+cert/

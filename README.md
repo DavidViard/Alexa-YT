@@ -180,18 +180,44 @@ où regarder.
 ### Certificat : à refaire à chaque renouvellement
 
 DSM renouvelle le certificat Let's Encrypt automatiquement (tous les 2 à 3 mois). Le certificat
-envoyé à Amazon change alors, et la skill ne répond plus (`INVALID_RESPONSE`) tant qu'on ne lui
-a pas renvoyé le nouveau. Pour (ré)générer le fichier :
+présenté à Amazon change alors, et la skill ne répond plus (`INVALID_RESPONSE`) tant qu'on ne lui
+a pas renvoyé le nouveau. L'envoi à Amazon reste manuel (la console n'offre pas de moyen de
+l'automatiser simplement), mais `scripts/check-cert.sh` te prévient quand il faut le faire.
+
+**Première fois**, en SSH (la skill fonctionne, donc le certificat actuel est le bon) :
 
 ```sh
-echo | openssl s_client -connect 127.0.0.1:443 -servername chockr.synology.me 2>/dev/null \
-  | openssl x509 > ~/alexa-yt/chockr-cert.pem
-openssl x509 -in ~/alexa-yt/chockr-cert.pem -noout -enddate   # date d'expiration
+sh ~/alexa-yt/scripts/check-cert.sh
 ```
 
-Télécharge `chockr-cert.pem` depuis File Station (*home › alexa-yt*, clic droit › Télécharger),
-puis dans la console Alexa : *Build › Endpoint* › envoie le fichier › **Save Endpoints** (pas
-besoin de Build).
+Il enregistre le certificat actuel comme « celui d'Amazon » dans `~/alexa-yt/cert/`.
+
+**Tâche planifiée** (vérification quotidienne) : *Panneau de configuration › Planificateur de
+tâches › Créer › Tâche planifiée › Script défini par l'utilisateur* :
+
+- *Général* : nom `Alexa-YT certificat`, utilisateur **root** (nécessaire pour la notification DSM) ;
+- *Programmer* : tous les jours, par exemple à 9 h ;
+- *Paramètres de tâche* : coche *Envoyer les détails d'exécution par e-mail* et *uniquement si le
+  script se termine anormalement* (si les e-mails sont configurés dans *Notification*), et dans
+  *Script défini par l'utilisateur* (remplace `utilisateur` par ton identifiant DSM) :
+
+  ```sh
+  sh /var/services/homes/utilisateur/alexa-yt/scripts/check-cert.sh
+  ```
+
+Le script compare le certificat servi par le NAS à celui envoyé à Amazon. S'ils diffèrent, il
+affiche une notification DSM (et un e-mail si coché) et se termine en erreur. Il prévient aussi
+si le certificat expire dans moins de 14 jours sans avoir été renouvelé.
+
+**Quand l'alerte arrive** :
+
+1. Télécharge `cert/actuel.pem` depuis File Station (*home › alexa-yt › cert*, clic droit ›
+   Télécharger).
+2. Console Alexa : *Build › Endpoint* › envoie le fichier › **Save Endpoints** (pas besoin de Build).
+3. En SSH : `sh ~/alexa-yt/scripts/check-cert.sh --envoye` pour noter que c'est fait.
+
+Pour tester la tâche tout de suite : sélectionne-la dans le Planificateur › **Exécuter**, puis
+*Action › Afficher le résultat*.
 
 ### Mettre à jour le code sur le NAS
 
