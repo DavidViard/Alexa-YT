@@ -1,0 +1,11 @@
+{
+  "skill_id": "amzn1.ask.skill.A-REMPLACER",
+  "public_base_url": "https://chockr.synology.me",
+  "secret": "GENERE-AUTOMATIQUEMENT-PAR-INSTALL",
+  "port": 8765,
+  "ytdlp_path": "../bin/yt-dlp",
+  "google_client_id": "",
+  "google_client_secret": "",
+  "shuffle_by_default": false,
+  "playlists": []
+}
