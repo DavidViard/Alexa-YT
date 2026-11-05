@@ -1,0 +1,7 @@
+bin/
+server/config.json
+server/google_token.json
+server/state.json
+*.log
+*.pid
+__pycache__/
